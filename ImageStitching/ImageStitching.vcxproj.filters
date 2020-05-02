@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HarrisCorner.h">
+    <ClInclude Include="FeatureUtil.h">
       <Filter>標頭檔</Filter>
     </ClInclude>
   </ItemGroup>
