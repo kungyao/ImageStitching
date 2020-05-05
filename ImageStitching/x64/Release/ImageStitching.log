@@ -1,8 +1,24 @@
 ﻿  Source.cpp
-d:\microsoft visual studio\projects\imagestitching\imagestitching\featureutil.h(43): warning C4244: '正在初始化': 將 'int' 轉換為 'float'，由於類型不同，可能導致資料遺失
+d:\visualstudioproject\imagestitching\imagestitching\featureutil.h(77): warning C4244: '正在初始化': 將 'double' 轉換為 'float'，由於類型不同，可能導致資料遺失
+d:\visualstudioproject\imagestitching\imagestitching\featureutil.h(152): warning C4244: '=': 將 'float' 轉換為 '_Tp'，由於類型不同，可能導致資料遺失
+          with
+          [
+              _Tp=uchar
+          ]
+d:\visualstudioproject\imagestitching\imagestitching\featureutil.h(237): warning C4244: '=': 將 'float' 轉換為 '_Tp'，由於類型不同，可能導致資料遺失
+          with
+          [
+              _Tp=uchar
+          ]
+d:\visualstudioproject\imagestitching\imagestitching\featureutil.h(238): warning C4244: '=': 將 'float' 轉換為 '_Tp'，由於類型不同，可能導致資料遺失
+          with
+          [
+              _Tp=uchar
+          ]
+d:\visualstudioproject\imagestitching\imagestitching\featureutil.h(281): warning C4305: '正在初始化': 從 'double' 轉換為 'float'，是由較大的類型轉換為較小的類型，可能導致資料遺失
   正在產生程式碼
-  174 of 357 functions (48.7%) were compiled, the rest were copied from previous compilation.
+  3 of 946 functions ( 0.3%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    6 functions had inline decision re-evaluated but remain unchanged
+    0 functions had inline decision re-evaluated but remain unchanged
   已完成程式碼產生
-  ImageStitching.vcxproj -> D:\Microsoft Visual Studio\Projects\ImageStitching\x64\Release\ImageStitching.exe
+  ImageStitching.vcxproj -> D:\VisualStudioProject\ImageStitching\x64\Release\ImageStitching.exe

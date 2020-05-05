@@ -1,23 +1,48 @@
 ﻿#include <iostream>
+#include <vector>
+#include <string>
 #include "FeatureUtil.h"
 
-#define WINDOW_SIZE 9
 #define MyVec(x) Vec3b(x,x,x) 
 
 using namespace std;
 
 void test_weight_list();
 void test_gradient_map();
+void visual_feature(const std::vector<cv::Mat> &images, const FeatureList &featureList);
 
 int main() {
 	//test_weight_list();
 	//test_gradient_map();
-	system("pause");
+	
+	//string testDataPath = "./TestData/Chess_Board.png";
+	string testDataPath = "./TestData/denny/denny00.jpg";
+	std::vector<cv::Mat> images(0);
+	images.push_back(cv::imread(testDataPath));
+	FeatureList tmp = Feature::HarrisCorner(images);
+	visual_feature(images, tmp);
 	return 0;
 }
 
+void visual_feature(const std::vector<cv::Mat> &images, const FeatureList &featureList) {
+	int half_x = 0, half_y = 0;
+	half_x = half_y = (WINDOW_SIZE - 1) / 2;
+	for (int i = 0; i < images.size(); i++) {
+		const cv::Mat &img = images[i];
+		const auto &fPoint = featureList[i];
+		cv::Mat tmpImg;
+		img.copyTo(tmpImg);
+		for (const auto &p : fPoint) {
+			//printf("%d %d %d %d\n", p.y - half_y, p.x - half_x, p.y + half_y, p.x + half_x);
+			cv::rectangle(tmpImg, cv::Rect(p.y - half_y, p.x - half_x, WINDOW_SIZE, WINDOW_SIZE), Scalar(0, 0, 255));
+		}
+		string tmpOut = "./Feature/" + to_string(i);
+		cv::imwrite(tmpOut + "_image.png", tmpImg);
+	}
+}
+
 void test_weight_list() {
-	auto list = Feature::genWeightList(WINDOW_SIZE);
+	auto list = Gaussian::genGaussWeight(WINDOW_SIZE);
 	for (auto l1 : list) {
 		for (auto l2 : l1) {
 			cout << l2 << " ";
@@ -54,8 +79,8 @@ void test_gradient_map() {
 	fakeImage.at<Vec3b>(2, 2) = MyVec(55);
 	fakeImage.at<Vec3b>(2, 3) = MyVec(30);
 	fakeImage.at<Vec3b>(2, 4) = MyVec(0);
-	auto list2 = Feature::genImageGradient(fakeImage);
-	for (auto l1 : list2) {
+	auto list2 = GradientImage(fakeImage, NULL);
+	for (auto l1 : list2.gradient) {
 		for (auto l2 : l1) {
 			cout << l2 << " ";
 		}
