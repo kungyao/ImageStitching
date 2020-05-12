@@ -2,88 +2,32 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <random>
+
 #include <opencv2/opencv.hpp>
 #include <opencv2/opencv.hpp>
 //#include<opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+#include "Common.h"
+
 using namespace std;
 using namespace cv;
 
-#define WRITE_MIDDLE_STEP_IMAGE True
-
-template <typename T>
-class Vec2x {
-public:
-	T x = 0;
-	T y = 0;
-
-	Vec2x() {
-		x = 0;
-		y = 0;
-	}
-	Vec2x(T _x, T _y) {
-		x = _x;
-		y = _y;
-	}
-
-	Vec2x abs() {
-		return Vec2x(std::abs(x), std::abs(y));
-	}
-
-	//Vec2x operator +(const Vec2x &rhs) {
-	//	return Vec2x(x * rhs.x, y * rhs.y);
-	//}
-
-	Vec2x &operator +=(const Vec2x &rhs) {
-		x += rhs.x;
-		y += rhs.y;
-		return *this;
-	}
-
-	friend Vec2x operator *(const Vec2x &lhs, const T &val) {
-		return Vec2x(lhs.x * val, lhs.y * val);
-	}
-
-	friend ostream& operator<<(ostream& os, const Vec2x& vec) {
-		cout << "(x : " << vec.x << ", y : " << vec.y << ")";
-		return os;
-	}
-};
-
-#define Vec2i Vec2x<int>
-#define Vec2f Vec2x<float>
-
-using feature_pair = std::pair<float, Vec2i>;
-
-class FeatureInfo {
-public:
-	// feature position
-	std::vector<Vec2i> pos;
-	// description
-	vector<vector<int>> descs;
-	FeatureInfo() {
-		pos.clear();
-		descs.clear();
-	}
-	FeatureInfo(const std::vector<feature_pair> &tmpFeature, const int &maxSizeOfFeature) {
-		pos.reserve(maxSizeOfFeature);
-		for (int i = 0; i < tmpFeature.size() && i < maxSizeOfFeature; i++)pos.push_back(tmpFeature[i].second);
-		pos.resize(pos.size());
-	}
-};
 #define FeatureList std::vector<FeatureInfo>
+const std::string outPath = "./Feature/";
 
 class Feature {
-private:
+public:
 	static int maxFeatureSize;
+private:
 	// sift
 	static void featureDesctiptor(FeatureInfo &fInfo, const cv::Mat &angle) {
 		const auto& pos = fInfo.pos;
 		auto& descs = fInfo.descs;
 		for (int i = 0; i < pos.size(); i++) {
-			int x = pos[i].x;
-			int y = pos[i].y;
+			int y = pos[i].x;
+			int x = pos[i].y;
 
 			vector<int> votes(128, 0);
 			int blockStart[4] = { -8, -4, 1, 5 };
@@ -95,9 +39,16 @@ private:
 					int x_ = x + blockStart[bx];
 					for (int dy = 0; dy < 4; dy++)
 					{
+						int tmp_y = y_ + dy;
+						if (tmp_y < 0 || tmp_y >= angle.rows)
+							continue;
 						for (int dx = 0; dx < 4; dx++)
 						{
-							int idx = 8 * (4 * by + bx) + floor(angle.at<float>(y_ + dy, x_ + dx));
+							int tmp_x = x_ + dx;
+							if (tmp_x < 0 || tmp_x >= angle.cols)
+								continue;
+							// std::cout << y_ + dy << "  " << x_ + dx << "\n";
+							int idx = 8 * (4 * by + bx) + std::floor(angle.at<float>(y_ + dy, x_ + dx));
 							votes[idx]++;
 						}
 					}
@@ -111,6 +62,10 @@ public:
 		FeatureList featurePoints(0);
 		featurePoints.reserve(images.size());
 		float k = 0.05;
+
+#ifdef WRITE_MIDDLE_STEP_IMAGE
+		int i = 0;
+#endif
 		for (const cv::Mat &img : images) {
 			cv::Mat grayImg;
 			cv::cvtColor(img, grayImg, CV_BGR2GRAY);
@@ -130,8 +85,9 @@ public:
 			filter2D(grayImg, Iy, CV_32F, kernelY);
 
 #ifdef WRITE_MIDDLE_STEP_IMAGE
-			cv::imwrite("./Feature/grad_x_img.png", Ix);
-			cv::imwrite("./Feature/grad_y_img.png", Iy);
+			cv::imwrite(outPath + "grad_x_img_" + std::to_string(i) + ".png", Ix);
+			cv::imwrite(outPath + "grad_y_img_" + std::to_string(i) + ".png", Iy);
+			i++;
 #endif // WRITE_MIDDLE_STEP_IMAGE
 
 			cv::Mat gaus_Ix2;
@@ -162,19 +118,32 @@ public:
 				return true;
 			};
 
-			std::vector<feature_pair> tmpFeature;
+			// https://cmsc426.github.io/pano/?fbclid=IwAR2pleqRn54yQgRzetwXA9pI2p4Hc-WjXbaB7wX9YItvjxKVAeLD3eOerdE#anms
+			std::vector<ResponseInfo> tmpFeature;
 			//printf("rows : %d, cols : %d\n", img.rows, img.cols);
 			for (int i = 0; i < img.rows; i++) {
 				for (int j = 0; j < img.cols; j++) {
 					float r = R.at<float>(i, j);
 					if (r > threshold && isLocalMaximum(R, j, i)) {
-						tmpFeature.push_back(feature_pair(r, Vec2i(i, j)));
+						tmpFeature.push_back(ResponseInfo(std::numeric_limits<float>::max(), r, Vec2i(i, j)));
 					}
 				}
 			}
 
-			auto r_val_compare = [&](const feature_pair &f1, const feature_pair& f2) {
-				return f1.first > f2.first;
+			for (int i = 0; i < tmpFeature.size(); i++)
+			{
+				int ED = 1000000;
+				for (int j = 0; j < tmpFeature.size(); j++)
+				{
+					if (tmpFeature[j].c > tmpFeature[i].c)
+						ED = pow(tmpFeature[j].pos.x - tmpFeature[i].pos.x, 2) + pow(tmpFeature[j].pos.y - tmpFeature[i].pos.y, 2);
+					if (tmpFeature[i].r > ED)
+						tmpFeature[i].r = ED;
+				}
+			}
+
+			auto r_val_compare = [&](const ResponseInfo&f1, const ResponseInfo& f2) {
+				return f1.r > f2.r;
 			};
 			std::sort(tmpFeature.begin(), tmpFeature.end(), r_val_compare);
 			FeatureInfo fea(tmpFeature, maxFeatureSize);
@@ -191,47 +160,37 @@ public:
 	}
 };
 
-int Feature::maxFeatureSize = 500;
+int Feature::maxFeatureSize = 128;
 
 class FeatureMatch {
 private:
-	static void RemoveOutliers(const int &offset, const FeatureInfo &f1, const FeatureInfo& f2, vector<Vec2i>& matchingIndex) {
-		using Score = std::pair<int, float>;
+	static void CheckManyToOne(const FeatureInfo &f1, const FeatureInfo& f2, vector<Vec2i>& matchingIndex) {
+		std::vector<int> f1_matches(f1.pos.size(), -1);
+		for (int i = 0; i < matchingIndex.size(); i++) {
+			if (f1_matches[matchingIndex[i].y] != -1) {
+				cv::Mat tmp_f0(f1.descs[f1_matches[matchingIndex[i].y]]);
+				cv::Mat tmp_f1(f1.descs[matchingIndex[i].x]);
+				cv::Mat tmp_f2(f2.descs[matchingIndex[i].y]);
 
-		std::vector<Score> scores;
-		std::vector<int> dX;
-		std::vector<int> dY;
+				float d1 = cv::norm(tmp_f0, tmp_f2, cv::NORM_L2);
+				float d2 = cv::norm(tmp_f1, tmp_f2, cv::NORM_L2);
 
-		for (int i = 0; i < matchingIndex.size(); i++)
-		{
-			int x1 = f1.pos[matchingIndex[i].x].x + offset;
-			int y1 = f1.pos[matchingIndex[i].x].y;
-			int x2 = f2.pos[matchingIndex[i].y].x;
-			int y2 = f2.pos[matchingIndex[i].y].y;
-			dX.push_back(x1 - x2);
-			dY.push_back(y1 - y2);
-		}
-
-		for (int i = 0; i < matchingIndex.size(); i++)
-		{
-			float scoreTmp = 0;
-			for (int j = 0; j < matchingIndex.size(); j++)
-			{
-				scoreTmp = sqrt(pow(abs(dX[i] - dX[j]), 2) + pow(abs(dY[i] - dY[j]), 2));
+				if (d2 < d1) {
+					f1_matches[matchingIndex[i].y] = matchingIndex[i].x;
+				}
 			}
-			scores.push_back(Score(i, scoreTmp));
+			else {
+				f1_matches[matchingIndex[i].y] = matchingIndex[i].x;
+			}
 		}
 
-		auto score_compare = [&](const Score& s1, const Score& s2) {
-			return s1.second < s2.second;
-		};
-		std::sort(scores.begin(), scores.end(), score_compare);
-
-		float ratio = 0.3f;
 		std::vector<Vec2i> tmpMatchIndex(0);
-		tmpMatchIndex.reserve(matchingIndex.size() * ratio);
-		for (int i = 0; i < tmpMatchIndex.size(); i++) 
-			tmpMatchIndex.push_back(matchingIndex[scores[i].first]);
+		tmpMatchIndex.reserve(f1_matches.size());
+		for (int i = 0; i < f1_matches.size(); i++) {
+			if (f1_matches[i] != -1) {
+				tmpMatchIndex.push_back(Vec2i(f1_matches[i], i));
+			}
+		}
 
 		matchingIndex.assign(tmpMatchIndex.begin(), tmpMatchIndex.end());
 	}
@@ -246,34 +205,126 @@ public:
 			const auto& f1_desc = f1.descs;
 			const auto& f2_desc = f2.descs;
 
-			float maxScore = std::numeric_limits<float>::max();
-			int maxIndex = -1;
-
 			std::vector<Vec2i> matchingIndex;
+
 			for (int d1i = 0; d1i < f1_desc.size(); d1i++) {
-				const cv::Mat feature1(f2_desc[d1i]);
+				const cv::Mat feature1(f1_desc[d1i]);
+
+				int lowIndex = 0;
+				float lowDis = std::numeric_limits<float>::max();
+				int secondIndex = 0;
+				float secondDis = std::numeric_limits<float>::max();
 
 				for (int d2i = 0; d2i < f2_desc.size(); d2i++) {
-					const cv::Mat feature2(f1_desc[d2i]);
+					const cv::Mat feature2(f2_desc[d2i]);
 
-					//Cosine Similarity
-					float cos_dist = feature1.dot(feature2) / (cv::norm(feature1, cv::NORM_L2) * cv::norm(feature2, cv::NORM_L2));
-					if (cos_dist > maxScore) {
-						maxScore = cos_dist;
-						maxIndex = d2i;
+					float dist = cv::norm(feature1, feature2, cv::NORM_L2);
+					if (dist < lowDis) {
+						secondIndex = lowIndex;
+						secondDis = lowDis;
+						lowIndex = d2i;
+						lowDis = dist;
+					}
+					else if (dist < secondDis) {
+						secondIndex = d2i;
+						secondDis = dist;
 					}
 				}
-
-				if (maxScore > threshold) {
-					matchingIndex.push_back(Vec2i(d1i, maxIndex));
+				// std::cout << lowDis / secondDis << std::endl;
+				if (lowDis / secondDis < threshold) {
+					matchingIndex.push_back(Vec2i(d1i, lowIndex));
 				}
 			}
 
-			// offset = image.cols?
-			RemoveOutliers(0, f1, f2, matchingIndex);
+			CheckManyToOne(f1, f2, matchingIndex);
 			matches.push_back(matchingIndex);
 		}
 
 		return matches;
+	}
+};
+
+static std::random_device rd;
+
+class ImageMatcher {
+public:
+	static std::vector<Vec2i> Match(const std::vector<cv::Mat> &images,const std::vector<FeatureInfo> &featureInfoList, const std::vector<std::vector<Vec2i>> &matches) {
+		std::vector<Vec2i> alignments(0);
+		alignments.reserve(matches.size());
+
+		for (int i = 0; i < matches.size(); i++) {
+			const auto& match = matches[i];
+
+			const auto& feaPos1 = featureInfoList[i].pos;
+			const auto& feaPos2 = featureInfoList[i + 1].pos;
+
+			float minDifference = std::numeric_limits<float>::max();
+
+			Vec2i alignment;
+			int K = (match.size() - 1) * match.size() / 2;
+			for (int j = 0; j < K; j++) {
+				// 依照某一筆資料做位移，然後比對位移過後的feature point誤差
+				std::default_random_engine generator = std::default_random_engine(rd());
+				std::uniform_int_distribution<int> distribution(0, match.size() - 1);
+				int sample = distribution(generator);
+
+				const Vec2i& sampleMatching = match[sample];
+				Vec2i offset(0, images[i].cols);
+				Vec2i offsetPoint2 = feaPos2[sampleMatching.y] + offset;
+
+				Vec2i sampleAlignment = feaPos1[sampleMatching.x] - offsetPoint2;
+				float sampleDist2 = sampleAlignment.x * sampleAlignment.x + sampleAlignment.y * sampleAlignment.y;
+
+				// neglect bad matching which distance is larger
+				// than image width
+				if (sampleDist2 > images[i].cols * images[i].cols)
+					continue;
+
+				float difference = 0.0f;
+				for (const auto& pair : match) {
+					Vec2i moveP2 = feaPos2[pair.y] + offset + sampleAlignment;
+					Vec2i pointDiff = feaPos1[pair.x] - moveP2;
+
+					float dist2 = pointDiff.x * pointDiff.x + pointDiff.y * pointDiff.y;
+					if (dist2 < images[i].cols * images[i].cols)
+						difference += std::sqrt(dist2);
+				}
+
+				if (difference < minDifference) {
+					minDifference = difference;
+					alignment = sampleAlignment;
+				}
+			}
+
+			alignments.push_back(alignment);
+		}
+
+		return alignments;
+	}
+};
+
+class ImageUtil {
+public:
+	static void GenerateMatchResult(const std::vector<cv::Mat>& images, const std::vector<FeatureInfo>& fInfos, const std::vector<std::vector<Vec2i>>& matches) {
+		for (int i = 0; i < matches.size(); i++) {
+			const auto& lhsFeaturePoints = fInfos[i].pos;
+			const auto& rhsFeaturePoints = fInfos[i + 1].pos;
+
+			std::vector<cv::KeyPoint> lhsKp;
+			std::vector<cv::KeyPoint> rhsKp;
+			std::vector<cv::DMatch> dms;
+
+			for (int j = 0; j < lhsFeaturePoints.size(); j++)
+				lhsKp.push_back(cv::KeyPoint(cv::Point(lhsFeaturePoints[j].y, lhsFeaturePoints[j].x), 2));
+			for (int j = 0; j < rhsFeaturePoints.size(); j++)
+				rhsKp.push_back(cv::KeyPoint(cv::Point(rhsFeaturePoints[j].y, rhsFeaturePoints[j].x), 2));
+
+			for (int j = 0; j < matches[i].size(); j++) 
+				dms.push_back(cv::DMatch(matches[i][j].x, matches[i][j].y, -1));
+//#ifdef WRITE_MIDDLE_STEP_IMAGE
+			cv::Mat out;
+			cv::drawMatches(images[i], lhsKp, images[i + 1], rhsKp, dms, out, cv::Scalar(0, 0, 255));
+			cv::imwrite(outPath + "match_" + std::to_string(i) + "_" + std::to_string(i + 1) + ".png", out);
+		}
 	}
 };

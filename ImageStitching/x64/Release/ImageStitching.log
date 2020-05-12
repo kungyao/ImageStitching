@@ -1,9 +1,14 @@
 ﻿  Source.cpp
-D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(100,16): warning C4244: '正在初始化': 將 'float' 轉換為 'int'，由於類型不同，可能導致資料遺失
-D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(113,1): warning C4305: '正在初始化': 從 'double' 轉換為 'float'，是由較大的類型轉換為較小的類型，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(118,16): warning C4244: '正在初始化': 將 'float' 轉換為 'int'，由於類型不同，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(131,1): warning C4305: '正在初始化': 從 'double' 轉換為 'float'，是由較大的類型轉換為較小的類型，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(206,62): warning C4244: '=': 將 'double' 轉換為 'int'，由於類型不同，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(208,25): warning C4244: '=': 將 'int' 轉換為 'float'，由於類型不同，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(242,14): warning C4244: '正在初始化': 將 'double' 轉換為 'float'，由於類型不同，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(243,14): warning C4244: '正在初始化': 將 'double' 轉換為 'float'，由於類型不同，可能導致資料遺失
+D:\Visual Studio Project\ImageStitching\ImageStitching\FeatureUtil.h(288,17): warning C4244: '正在初始化': 將 'double' 轉換為 'float'，由於類型不同，可能導致資料遺失
   正在產生程式碼
-  1 of 689 functions ( 0.1%) were compiled, the rest were copied from previous compilation.
+  29 of 891 functions ( 3.3%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
-    2 functions had inline decision re-evaluated but remain unchanged
+    29 functions had inline decision re-evaluated but remain unchanged
   已完成程式碼產生
   ImageStitching.vcxproj -> D:\Visual Studio Project\ImageStitching\x64\Release\ImageStitching.exe
