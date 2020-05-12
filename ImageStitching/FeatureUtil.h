@@ -192,3 +192,88 @@ public:
 };
 
 int Feature::maxFeatureSize = 500;
+
+class FeatureMatch {
+private:
+	static void RemoveOutliers(const int &offset, const FeatureInfo &f1, const FeatureInfo& f2, vector<Vec2i>& matchingIndex) {
+		using Score = std::pair<int, float>;
+
+		std::vector<Score> scores;
+		std::vector<int> dX;
+		std::vector<int> dY;
+
+		for (int i = 0; i < matchingIndex.size(); i++)
+		{
+			int x1 = f1.pos[matchingIndex[i].x].x + offset;
+			int y1 = f1.pos[matchingIndex[i].x].y;
+			int x2 = f2.pos[matchingIndex[i].y].x;
+			int y2 = f2.pos[matchingIndex[i].y].y;
+			dX.push_back(x1 - x2);
+			dY.push_back(y1 - y2);
+		}
+
+		for (int i = 0; i < matchingIndex.size(); i++)
+		{
+			float scoreTmp = 0;
+			for (int j = 0; j < matchingIndex.size(); j++)
+			{
+				scoreTmp = sqrt(pow(abs(dX[i] - dX[j]), 2) + pow(abs(dY[i] - dY[j]), 2));
+			}
+			scores.push_back(Score(i, scoreTmp));
+		}
+
+		auto score_compare = [&](const Score& s1, const Score& s2) {
+			return s1.second < s2.second;
+		};
+		std::sort(scores.begin(), scores.end(), score_compare);
+
+		float ratio = 0.3f;
+		std::vector<Vec2i> tmpMatchIndex(0);
+		tmpMatchIndex.reserve(matchingIndex.size() * ratio);
+		for (int i = 0; i < tmpMatchIndex.size(); i++) 
+			tmpMatchIndex.push_back(matchingIndex[scores[i].first]);
+
+		matchingIndex.assign(tmpMatchIndex.begin(), tmpMatchIndex.end());
+	}
+public:
+	static std::vector<std::vector<Vec2i>> Match(const std::vector<FeatureInfo> &featureInfoList, float threshold = 0.813f) {
+		std::vector<std::vector<Vec2i>> matches(0);
+		matches.reserve(featureInfoList.size() - 1);
+		for (int i = 0; i < featureInfoList.size() - 1; i++) {
+			const FeatureInfo& f1 = featureInfoList[i];
+			const FeatureInfo& f2 = featureInfoList[i + 1];
+
+			const auto& f1_desc = f1.descs;
+			const auto& f2_desc = f2.descs;
+
+			float maxScore = std::numeric_limits<float>::max();
+			int maxIndex = -1;
+
+			std::vector<Vec2i> matchingIndex;
+			for (int d1i = 0; d1i < f1_desc.size(); d1i++) {
+				const cv::Mat feature1(f2_desc[d1i]);
+
+				for (int d2i = 0; d2i < f2_desc.size(); d2i++) {
+					const cv::Mat feature2(f1_desc[d2i]);
+
+					//Cosine Similarity
+					float cos_dist = feature1.dot(feature2) / (cv::norm(feature1, cv::NORM_L2) * cv::norm(feature2, cv::NORM_L2));
+					if (cos_dist > maxScore) {
+						maxScore = cos_dist;
+						maxIndex = d2i;
+					}
+				}
+
+				if (maxScore > threshold) {
+					matchingIndex.push_back(Vec2i(d1i, maxIndex));
+				}
+			}
+
+			// offset = image.cols?
+			RemoveOutliers(0, f1, f2, matchingIndex);
+			matches.push_back(matchingIndex);
+		}
+
+		return matches;
+	}
+};
