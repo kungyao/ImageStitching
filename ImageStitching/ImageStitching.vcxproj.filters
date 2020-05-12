@@ -23,5 +23,8 @@
     <ClInclude Include="FeatureUtil.h">
       <Filter>標頭檔</Filter>
     </ClInclude>
+    <ClInclude Include="Common.h">
+      <Filter>標頭檔</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

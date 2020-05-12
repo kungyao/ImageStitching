@@ -11,11 +11,9 @@
 
 #include "Common.h"
 
-using namespace std;
-using namespace cv;
-
 #define FeatureList std::vector<FeatureInfo>
-const std::string outPath = "./Feature/";
+
+//#define WRITE_MIDDLE_STEP_IMAGE
 
 class Feature {
 public:
@@ -29,7 +27,7 @@ private:
 			int y = pos[i].x;
 			int x = pos[i].y;
 
-			vector<int> votes(128, 0);
+			std::vector<int> votes(128, 0);
 			int blockStart[4] = { -8, -4, 1, 5 };
 			for (int by = 0; by < 4; by++)
 			{
@@ -71,18 +69,35 @@ public:
 			cv::cvtColor(img, grayImg, CV_BGR2GRAY);
 			grayImg.convertTo(grayImg, CV_32FC1);
 
-			Mat Ix, Iy;
-			Mat kernelX(1, 3, CV_32F);
-			kernelX.at<float>(0, 0) = -1.0f;
+			// use sobel filter to calculate image gradient
+			cv::Mat Ix, Iy;
+			cv::Mat kernelX(3, 3, CV_32F);
+			kernelX.at<float>(0, 0) = 1.0f;
 			kernelX.at<float>(0, 1) = 0.0f;
-			kernelX.at<float>(0, 2) = 1.0f;
-			filter2D(grayImg, Ix, CV_32F, kernelX);
+			kernelX.at<float>(0, 2) = -1.0f;
+			//
+			kernelX.at<float>(1, 0) = 2.0f;
+			kernelX.at<float>(1, 1) = 0.0f;
+			kernelX.at<float>(1, 2) = -2.0f;
+			//
+			kernelX.at<float>(2, 0) = 1.0f;
+			kernelX.at<float>(2, 1) = 0.0f;
+			kernelX.at<float>(2, 2) = -1.0f;
+			cv::filter2D(grayImg, Ix, CV_32F, kernelX);
 
-			Mat kernelY(3, 1, CV_32F);
-			kernelY.at<float>(0, 0) = -1.0f;
+			cv::Mat kernelY(3, 3, CV_32F);
+			kernelY.at<float>(0, 0) = 1.0f;
 			kernelY.at<float>(1, 0) = 0.0f;
-			kernelY.at<float>(2, 0) = 1.0f;
-			filter2D(grayImg, Iy, CV_32F, kernelY);
+			kernelY.at<float>(2, 0) = -1.0f;
+			//
+			kernelY.at<float>(0, 1) = 2.0f;
+			kernelY.at<float>(1, 1) = 0.0f;
+			kernelY.at<float>(2, 1) = -2.0f;
+			//
+			kernelY.at<float>(0, 2) = 1.0f;
+			kernelY.at<float>(1, 2) = 0.0f;
+			kernelY.at<float>(2, 2) = -1.0f;
+			cv::filter2D(grayImg, Iy, CV_32F, kernelY);
 
 #ifdef WRITE_MIDDLE_STEP_IMAGE
 			cv::imwrite(outPath + "grad_x_img_" + std::to_string(i) + ".png", Ix);
@@ -164,7 +179,10 @@ int Feature::maxFeatureSize = 128;
 
 class FeatureMatch {
 private:
-	static void CheckManyToOne(const FeatureInfo &f1, const FeatureInfo& f2, vector<Vec2i>& matchingIndex) {
+	/**
+	 *@param matchingIndex[in, out]
+	 */
+	static void CheckManyToOne(const FeatureInfo &f1, const FeatureInfo& f2, std::vector<Vec2i>& matchingIndex) {
 		std::vector<int> f1_matches(f1.pos.size(), -1);
 		for (int i = 0; i < matchingIndex.size(); i++) {
 			if (f1_matches[matchingIndex[i].y] != -1) {
@@ -195,7 +213,7 @@ private:
 		matchingIndex.assign(tmpMatchIndex.begin(), tmpMatchIndex.end());
 	}
 public:
-	static std::vector<std::vector<Vec2i>> Match(const std::vector<FeatureInfo> &featureInfoList, float threshold = 0.813f) {
+	static std::vector<std::vector<Vec2i>> Match(const std::vector<FeatureInfo> &featureInfoList, float threshold = 0.8f) {
 		std::vector<std::vector<Vec2i>> matches(0);
 		matches.reserve(featureInfoList.size() - 1);
 		for (int i = 0; i < featureInfoList.size() - 1; i++) {
@@ -236,7 +254,9 @@ public:
 				}
 			}
 
-			CheckManyToOne(f1, f2, matchingIndex);
+			//std::cout << matchingIndex.size() << std::endl;
+			//CheckManyToOne(f1, f2, matchingIndex);
+			//std::cout << matchingIndex.size() << std::endl;
 			matches.push_back(matchingIndex);
 		}
 
@@ -261,12 +281,13 @@ public:
 			float minDifference = std::numeric_limits<float>::max();
 
 			Vec2i alignment;
-			int K = (match.size() - 1) * match.size() / 2;
-			for (int j = 0; j < K; j++) {
+			//int K = (match.size() - 1) * match.size() / 2;
+			for (int sample = 0; sample < match.size(); sample++) {
+			//for (int j = 0; j < K; j++) {
 				// 依照某一筆資料做位移，然後比對位移過後的feature point誤差
-				std::default_random_engine generator = std::default_random_engine(rd());
-				std::uniform_int_distribution<int> distribution(0, match.size() - 1);
-				int sample = distribution(generator);
+				//std::default_random_engine generator = std::default_random_engine(rd());
+				//std::uniform_int_distribution<int> distribution(0, match.size() - 1);
+				//int sample = distribution(generator);
 
 				const Vec2i& sampleMatching = match[sample];
 				Vec2i offset(0, images[i].cols);
@@ -303,28 +324,88 @@ public:
 	}
 };
 
-class ImageUtil {
+class ImageBlender {
 public:
-	static void GenerateMatchResult(const std::vector<cv::Mat>& images, const std::vector<FeatureInfo>& fInfos, const std::vector<std::vector<Vec2i>>& matches) {
-		for (int i = 0; i < matches.size(); i++) {
-			const auto& lhsFeaturePoints = fInfos[i].pos;
-			const auto& rhsFeaturePoints = fInfos[i + 1].pos;
+	static cv::Mat Blend(const std::vector<cv::Mat>& images, const std::vector<Vec2i>& alignments, const bool ifAdjest) {
+		std::vector<cv::Point> accumulateAlignments;
+		accumulateAlignments.reserve(alignments.size());
+		// swap x and y
+		for (const Vec2i& align : alignments) 
+			accumulateAlignments.push_back(cv::Point(align.y, align.x));
 
-			std::vector<cv::KeyPoint> lhsKp;
-			std::vector<cv::KeyPoint> rhsKp;
-			std::vector<cv::DMatch> dms;
+		int minDy = accumulateAlignments[0].y < 0 ? accumulateAlignments[0].y : 0;
+		int maxDy = accumulateAlignments[0].y > 0 ? accumulateAlignments[0].y : 0;
+		for (int i = 1; i < accumulateAlignments.size(); i++) {
+			accumulateAlignments[i] += accumulateAlignments[i - 1];
 
-			for (int j = 0; j < lhsFeaturePoints.size(); j++)
-				lhsKp.push_back(cv::KeyPoint(cv::Point(lhsFeaturePoints[j].y, lhsFeaturePoints[j].x), 2));
-			for (int j = 0; j < rhsFeaturePoints.size(); j++)
-				rhsKp.push_back(cv::KeyPoint(cv::Point(rhsFeaturePoints[j].y, rhsFeaturePoints[j].x), 2));
-
-			for (int j = 0; j < matches[i].size(); j++) 
-				dms.push_back(cv::DMatch(matches[i][j].x, matches[i][j].y, -1));
-//#ifdef WRITE_MIDDLE_STEP_IMAGE
-			cv::Mat out;
-			cv::drawMatches(images[i], lhsKp, images[i + 1], rhsKp, dms, out, cv::Scalar(0, 0, 255));
-			cv::imwrite(outPath + "match_" + std::to_string(i) + "_" + std::to_string(i + 1) + ".png", out);
+			minDy = (accumulateAlignments[i].y < minDy) ? accumulateAlignments[i].y : minDy;
+			maxDy = (accumulateAlignments[i].y > maxDy) ? accumulateAlignments[i].y : maxDy;
 		}
+
+		int allWidth = 0;
+		int allHeight = 0;
+		std::vector<int> offsetX;
+		offsetX.reserve(images.size());
+
+		for (auto& img : images) {
+			allWidth += img.cols;
+			offsetX.push_back(allWidth);
+		}
+		allWidth += accumulateAlignments[alignments.size() - 1].x;
+
+		allHeight = images[0].rows;
+		allHeight += (minDy < 0) ? -minDy : 0;
+		allHeight += (maxDy > 0) ? maxDy : 0;
+
+		cv::Mat panorama = cv::Mat::zeros(cv::Size(allWidth, allHeight), CV_32FC3);
+		cv::Mat panoramaIndex = cv::Mat::zeros(panorama.size(), CV_8UC1);
+
+		for (int n = 0; n < images.size(); n++) {
+			const cv::Mat& image = images[n];
+
+			const int beginX = (n == 0) ? 0 : offsetX[n - 1] + accumulateAlignments[n - 1].x;
+			const int beginY = (n == 0) ? -minDy : -minDy + accumulateAlignments[n - 1].y;
+
+			/*
+				From the second image, we need to use origin alignment
+				to build x-linear blending weight
+			*/
+			float intersectionRegion = (n > 0) ? -alignments[n - 1].y : 0.0f;
+
+			for (int iy = 0; iy < image.rows; iy++) {
+				for (int ix = 0; ix < image.cols; ix++) {
+					int ry = iy + beginY, rx = ix + beginX;
+
+					const cv::Vec3f originValue = panorama.at<cv::Vec3f>(ry, rx);
+					const cv::Vec3f addValue = cv::Vec3f(image.at<cv::Vec3b>(iy, ix));
+
+					if (panoramaIndex.at<uchar>(ry, rx) == 0) {
+						panoramaIndex.at<uchar>(ry, rx) = 1;
+						panorama.at<cv::Vec3f>(ry, rx) = addValue;
+					}
+					else {
+						const float addWeight = ix / intersectionRegion;
+						panorama.at<cv::Vec3f>(ry, rx) = (1.0f - addWeight) * originValue + addWeight * addValue;
+					}
+				}
+			}
+		}
+
+		panorama.convertTo(panorama, CV_8UC3);
+
+		if (ifAdjest) {
+			int width = panorama.cols;
+			int height = panorama.rows;
+
+			int min_used_x = std::numeric_limits<int>::max();
+			int max_used_x = -1;
+			int min_used_y = std::numeric_limits<int>::max();
+			int max_used_y = -1;
+
+			// crop image
+			panorama = panorama(cv::Rect(min_used_y, min_used_x, max_used_y, max_used_x));
+		}
+
+		return panorama;
 	}
 };
