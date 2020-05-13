@@ -1,8 +1,9 @@
-#pragma once
+﻿#pragma once
 #include <iostream>
 #include <string>
 #include <vector>
 #include <fstream>
+#include <filesystem>
 
 const std::string outPath = "./Feature/";
 
@@ -105,7 +106,7 @@ public:
 			cv::imwrite(outPath + "match_" + std::to_string(i) + "_" + std::to_string(i + 1) + ".png", out);
 		}
 	}
-	static std::vector<cv::Mat> LoadImageList(const std::string& dir) {
+	static std::vector<cv::Mat> LoadImageList(const std::string dir) {
 		std::vector<cv::Mat> img_list(0);
 		const std::string image_list_dir = "pano.txt";
 		std::fstream in;

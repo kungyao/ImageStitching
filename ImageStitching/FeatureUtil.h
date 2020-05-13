@@ -13,13 +13,13 @@
 
 #define FeatureList std::vector<FeatureInfo>
 
-//#define WRITE_MIDDLE_STEP_IMAGE
+// #define WRITE_MIDDLE_STEP_IMAGE
+// #define STAGE_INFORMATION_PRINT
 
 class Feature {
 public:
 	static int maxFeatureSize;
 private:
-	// sift
 	static void featureDesctiptor(FeatureInfo &fInfo, const cv::Mat &angle) {
 		const auto& pos = fInfo.pos;
 		auto& descs = fInfo.descs;
@@ -360,6 +360,11 @@ public:
 		cv::Mat panorama = cv::Mat::zeros(cv::Size(allWidth, allHeight), CV_32FC3);
 		cv::Mat panoramaIndex = cv::Mat::zeros(panorama.size(), CV_8UC1);
 
+		int min_used_x = std::numeric_limits<int>::max();
+		int max_used_x = -1;
+		int min_used_y = std::numeric_limits<int>::max();
+		int max_used_y = -1;
+
 		for (int n = 0; n < images.size(); n++) {
 			const cv::Mat& image = images[n];
 
@@ -371,6 +376,26 @@ public:
 				to build x-linear blending weight
 			*/
 			float intersectionRegion = (n > 0) ? -alignments[n - 1].y : 0.0f;
+
+			if (ifAdjest) {
+				if (n == 0) {
+					// 只有位移，把最小x設為0
+					min_used_x = 0;
+					// 只有位移，把最大x設為pano.cols
+					max_used_x = panorama.cols;
+					// top_left_y
+					min_used_y = beginY;
+					// bottom_left_y
+					max_used_y = image.rows - 1 + beginY;
+				}
+				// alignments.size() == images.size() - 1
+				else {
+					int top_right_y = beginY;
+					int bottom_right_y = image.rows - 1 + beginY;
+					min_used_y = top_right_y > min_used_y ? top_right_y : min_used_y;
+					max_used_y = bottom_right_y < max_used_y ? max_used_y : max_used_y;
+				}
+			}
 
 			for (int iy = 0; iy < image.rows; iy++) {
 				for (int ix = 0; ix < image.cols; ix++) {
@@ -394,16 +419,9 @@ public:
 		panorama.convertTo(panorama, CV_8UC3);
 
 		if (ifAdjest) {
-			int width = panorama.cols;
-			int height = panorama.rows;
-
-			int min_used_x = std::numeric_limits<int>::max();
-			int max_used_x = -1;
-			int min_used_y = std::numeric_limits<int>::max();
-			int max_used_y = -1;
-
+			ImageUtil::WriteImage(panorama, "panorama_no_crop");
 			// crop image
-			panorama = panorama(cv::Rect(min_used_y, min_used_x, max_used_y, max_used_x));
+			panorama = panorama(cv::Rect(min_used_x, min_used_y, max_used_x - min_used_x, max_used_y - min_used_y));
 		}
 
 		return panorama;
